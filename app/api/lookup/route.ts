@@ -1,65 +1,142 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '../../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-export async function POST(req: NextRequest) {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+// Extract street number from any address format
+function extractStreetNumber(address: string): string | null {
+  const match = address.match(/^\s*(\d+)/)
+  return match ? match[1] : null
+}
+
+// Extract postal code from Google Maps format: "V2Y 2Y2" or "V2Y2Y2"
+function extractPostalCode(address: string): string | null {
+  const match = address.match(/([A-Z]\d[A-Z])\s*(\d[A-Z]\d)/i)
+  return match ? `${match[1].toUpperCase()}${match[2].toUpperCase()}` : null
+}
+
+// Extract street name keywords for fuzzy matching
+function extractStreetKeywords(address: string): string[] {
+  // Remove house number, city, province, postal, country
+  const cleaned = address
+    .replace(/^\d+\s+/, '')           // remove leading number
+    .replace(/,.*$/, '')              // remove everything after first comma
+    .replace(/\b(Ave|Avenue|St|Street|Rd|Road|Dr|Drive|Blvd|Cres|Crescent|Pl|Place|Ct|Court|Way|Lane|Ln)\b/gi, '')
+    .trim()
+    .toLowerCase()
+  return cleaned.split(/\s+/).filter(w => w.length > 1)
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const { leadId } = await req.json()
+    const body = await request.json()
+    const { address } = body
 
-    const { data: lead } = await supabaseAdmin
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
+    if (!address) {
+      return NextResponse.json({ success: false, error: 'Address required' }, { status: 400 })
+    }
 
-    if (!lead) return NextResponse.json({ narrative: '' })
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const { data: bca } = await supabaseAdmin
-      .from('bca_data')
-      .select('*')
-      .ilike('civic_address', `%${lead.address.split(' ').slice(0,2).join(' ')}%`)
-      .limit(1)
-      .single()
+    const streetNumber = extractStreetNumber(address)
+    const postalCode = extractPostalCode(address)
 
-    const bedrooms = bca?.bedrooms || '3'
-    const isSuite = (bca?.actual_land_use || '').toUpperCase().includes('SUITE')
-    const isMorningstar = bca?.plan_number === 'BCP1655'
+    let bcaRecord: any = null
 
-    const prompt = `You are a Willoughby, Langley BC real estate specialist. Write a 3-paragraph market analysis (150 words max) for a homeowner. Be specific, warm, data-driven. No AI mentions. No "I".
+    // Strategy 1: Match on street number + postal code (most reliable)
+    if (streetNumber && postalCode) {
+      const { data } = await supabase
+        .from('bca_data')
+        .select('*')
+        .ilike('civic_address', `${streetNumber}%`)
+        .ilike('postal_code', `${postalCode.slice(0, 3)}%`)
+        .limit(1)
+        .maybeSingle()
+      bcaRecord = data
+    }
 
-Property: ${lead.address}, ${bedrooms}-bedroom${isSuite ? ' with suite' : ''}, ${isMorningstar ? 'Morningstar subdivision, ' : ''}built 2004
-Purchased: ${lead.purchase_date} for $${lead.purchase_price?.toLocaleString()}
-BCA assessed 2026: $${lead.bca_assessed?.toLocaleString()}
-Equity: $${lead.equity_gain?.toLocaleString()}+ (${lead.equity_multiple}x)
-Market: $468/sqft avg, 28 days DOM, 2 of 3 homes sold above BCA by avg $111,500
+    // Strategy 2: Match on street number + partial address
+    if (!bcaRecord && streetNumber) {
+      // Extract the street number and first part of street name
+      const addressParts = address.replace(/,.*$/, '').trim()
+      const { data } = await supabase
+        .from('bca_data')
+        .select('*')
+        .ilike('civic_address', `${streetNumber}%`)
+        .limit(5)
 
-Write 3 short paragraphs: 1) property context 2) what market data means for this home 3) timing and options.`
+      if (data && data.length > 0) {
+        // Find best match by comparing street name digits (e.g. "69a" in "69a Ave")
+        const streetDigits = addressParts.match(/\d+[a-zA-Z]?\s+(Ave|St|Rd|Dr|Blvd|Cres|Pl|Ct|Way)/i)
+        if (streetDigits) {
+          const streetRef = streetDigits[0].toLowerCase()
+          bcaRecord = data.find((r: any) =>
+            r.civic_address.toLowerCase().includes(streetRef.split(' ')[0])
+          ) || data[0]
+        } else {
+          bcaRecord = data[0]
+        }
+      }
+    }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
-      }),
-      signal: AbortSignal.timeout(15000)
+    // Strategy 3: Broad fuzzy search on street number only
+    if (!bcaRecord && streetNumber) {
+      const { data } = await supabase
+        .from('bca_data')
+        .select('*')
+        .ilike('civic_address', `${streetNumber} %`)
+        .limit(1)
+        .maybeSingle()
+      bcaRecord = data
+    }
+
+    // Log the visit
+    await supabase.from('leads').insert({
+      address: address,
+      postal_code: postalCode || '',
+      stage: 'viewed',
+      bca_assessed: bcaRecord?.assessed_total || null,
+      purchase_year: bcaRecord?.purchase_date
+        ? new Date(bcaRecord.purchase_date).getFullYear()
+        : null,
+      purchase_price: bcaRecord?.purchase_price || null,
+      equity_gain: bcaRecord?.equity_gain || null,
     })
 
-    const data = await response.json()
-    const narrative = data.content?.[0]?.text || ''
+    if (!bcaRecord) {
+      return NextResponse.json({
+        success: true,
+        bcaData: null,
+        message: 'Address not in database — manual report will be prepared',
+      })
+    }
 
-    await supabaseAdmin
-      .from('leads')
-      .update({ narrative })
-      .eq('id', leadId)
+    // Build estimate range (±3% around assessed)
+    const assessed = Number(bcaRecord.assessed_total)
+    const estimateLow  = Math.round(assessed * 0.97 / 1000) * 1000
+    const estimateHigh = Math.round(assessed * 1.07 / 1000) * 1000
 
-    return NextResponse.json({ narrative })
-  } catch (err) {
-    console.error('Report error:', err)
-    return NextResponse.json({ narrative: '' })
+    return NextResponse.json({
+      success: true,
+      bcaData: {
+        address: bcaRecord.civic_address,
+        purchasePrice: bcaRecord.purchase_price,
+        purchaseDate: bcaRecord.purchase_date,
+        assessedTotal: bcaRecord.assessed_total,
+        equityGain: bcaRecord.equity_gain,
+        equityMultiple: bcaRecord.equity_multiple,
+        bedrooms: bcaRecord.bedrooms,
+        yearsOwned: bcaRecord.years_owned,
+        estimateLow,
+        estimateHigh,
+      },
+    })
+  } catch (error) {
+    console.error('Lookup error:', error)
+    return NextResponse.json(
+      { success: false, error: 'Lookup failed' },
+      { status: 500 }
+    )
   }
 }
