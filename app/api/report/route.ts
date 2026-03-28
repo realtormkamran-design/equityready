@@ -70,6 +70,43 @@ export async function POST(request: NextRequest) {
       })
       .eq('address', address)
 
+    // ── Push to Follow Up Boss at Gate 2 unlock (name + phone captured) ──────
+    const fubKey = process.env.FOLLOWUPBOSS_API_KEY
+    if (fubKey && name && phone) {
+      try {
+        const fubPayload = {
+          source: 'EquityReady',
+          type: 'Registration',
+          person: {
+            firstName: name.split(' ')[0] || name,
+            lastName: name.split(' ').slice(1).join(' ') || '',
+            phones: [{ value: phone, type: 'mobile' }],
+            addresses: [{ street: address, type: 'home' }],
+            tags: ['EquityReady', 'Willoughby', 'Unlocked Estimate'],
+          },
+          notes: `EquityReady — unlocked estimate at Gate 2
+Address: ${address}
+BCA Assessed: ${bcaRecord?.assessed_total ? '$' + Number(bcaRecord.assessed_total).toLocaleString() : 'N/A'}
+Purchase price: ${bcaRecord?.purchase_price ? '$' + Number(bcaRecord.purchase_price).toLocaleString() : 'N/A'}
+Equity gain: ${bcaRecord?.equity_gain ? '$' + Number(bcaRecord.equity_gain).toLocaleString() : 'N/A'}
+Source: equityready.ca`,
+        }
+
+        await fetch('https://api.followupboss.com/v1/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${Buffer.from(fubKey + ':').toString('base64')}`,
+            'X-System': 'EquityReady',
+            'X-System-Key': fubKey,
+          },
+          body: JSON.stringify(fubPayload),
+        })
+      } catch (fubError) {
+        console.error('FUB error at Gate 2:', fubError)
+      }
+    }
+
     // ── Extract real property data ───────────────────────────────────────────
     const purchaseYear = bcaRecord?.purchase_date
       ? new Date(bcaRecord.purchase_date).getFullYear()
