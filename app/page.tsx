@@ -467,6 +467,7 @@ export default function Home() {
               ) : (
                 // NORMAL — blurred cards + form
                 <div>
+                <div className="gate2-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 12px', textAlign: 'center' }}>
                   <div style={{ color: '#64748B', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>BCA Assessed</div>
                   <div style={{ fontWeight: 800, fontSize: 18, color: '#0F2B5B' }}>{bcaData ? fmt(bcaData.assessedTotal) : '$1,701,000'}</div>
@@ -482,25 +483,25 @@ export default function Home() {
                   <div style={{ fontWeight: 800, fontSize: 16, color: '#C8952A', filter: 'blur(7px)', userSelect: 'none' }}>{bcaData ? fmt(bcaData.equityGain) : '$1,346,058'}</div>
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 22 }}>🔒</span></div>
                 </div>
-              </div>
-              <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '14px 16px', marginBottom: 24, borderLeft: '3px solid #C8952A' }}>
-                <p style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-                  Most original Willoughby owners are surprised — not by the number itself, but by what it means for the next chapter of their life.
-                </p>
-              </div>
-              <p style={{ textAlign: 'center', color: '#94A3B8', fontSize: 13, marginBottom: 20 }}>Enter your name and phone to unlock your full estimate</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <input value={lead.name} onChange={e => setLead(p => ({ ...p, name: e.target.value }))} placeholder="Your first name" style={{ padding: '15px 18px', border: '1.5px solid #CBD5E1', borderRadius: 10, fontSize: 16, outline: 'none' }} />
-                <div>
-                  <input value={lead.phone} onChange={e => { setLead(p => ({ ...p, phone: formatPhone(e.target.value) })); if (phoneError) setPhoneError('') }} placeholder="Phone number (e.g. 604-555-0123)" type="tel" style={{ width: '100%', padding: '15px 18px', border: `1.5px solid ${phoneError ? '#EF4444' : '#CBD5E1'}`, borderRadius: 10, fontSize: 16, outline: 'none' }} />
-                  {phoneError && <p style={{ color: '#EF4444', fontSize: 13, marginTop: 6 }}>{phoneError}</p>}
                 </div>
-                <button onClick={handleUnlock} disabled={loading || !lead.name.trim() || lead.name.trim().length < 2} style={{ padding: '17px', background: loading ? '#94A3B8' : '#0D9488', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none', borderRadius: 12, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(13,148,136,0.3)' }}>
-                  {loading ? 'Preparing your report...' : 'Unlock my estimate →'}
-                </button>
-                <p style={{ textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>No spam. No pressure. Used only to prepare your personalized report.</p>
-              </div>
-              </div>
+                <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '14px 16px', marginBottom: 24, borderLeft: '3px solid #C8952A' }}>
+                  <p style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+                    Most original Willoughby owners are surprised — not by the number itself, but by what it means for the next chapter of their life.
+                  </p>
+                </div>
+                <p style={{ textAlign: 'center', color: '#94A3B8', fontSize: 13, marginBottom: 20 }}>Enter your name and phone to unlock your full estimate</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <input value={lead.name} onChange={e => setLead(p => ({ ...p, name: e.target.value }))} placeholder="Your first name" style={{ padding: '15px 18px', border: '1.5px solid #CBD5E1', borderRadius: 10, fontSize: 16, outline: 'none' }} />
+                  <div>
+                    <input value={lead.phone} onChange={e => { setLead(p => ({ ...p, phone: formatPhone(e.target.value) })); if (phoneError) setPhoneError('') }} placeholder="Phone number (e.g. 604-555-0123)" type="tel" style={{ width: '100%', padding: '15px 18px', border: `1.5px solid ${phoneError ? '#EF4444' : '#CBD5E1'}`, borderRadius: 10, fontSize: 16, outline: 'none' }} />
+                    {phoneError && <p style={{ color: '#EF4444', fontSize: 13, marginTop: 6 }}>{phoneError}</p>}
+                  </div>
+                  <button onClick={handleUnlock} disabled={loading || !lead.name.trim() || lead.name.trim().length < 2} style={{ padding: '17px', background: loading ? '#94A3B8' : '#0D9488', color: '#fff', fontWeight: 700, fontSize: 16, border: 'none', borderRadius: 12, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(13,148,136,0.3)' }}>
+                    {loading ? 'Preparing your report...' : 'Unlock my estimate →'}
+                  </button>
+                  <p style={{ textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>No spam. No pressure. Used only to prepare your personalized report.</p>
+                </div>
+                </div>
               )}
             </div>
           </div>
