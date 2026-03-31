@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: 'Kamran Khan <Realtormkamran@gmail.com>',
+          from: 'Kamran Khan <kamran@equityready.ca>',
           to: email,
           subject: `Your Willoughby home report is ready — Kamran Khan`,
           html: emailHtml,
