@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
         if (data.length === 1) {
           bcaRecord = data[0]
         } else {
-          // Best match by street name fragment
           const inputLower = address.toLowerCase()
           const streetRef = inputLower.match(/\b(\d+[a-z]?)\s+(ave|av|st|rd|dr|blvd|cres|pl|way|ct)/i)
           if (streetRef) {
@@ -61,18 +60,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Update lead stage ────────────────────────────────────────────────────
+    // ── Update lead stage + save name and phone ──────────────────────────────
     await supabase
       .from('leads')
       .update({
         stage: 'report_requested',
         bca_assessed: bcaRecord?.assessed_total || null,
+        name: name || null,
+        phone: phone || null,
       })
       .eq('address', address)
 
-    // ── Push to Follow Up Boss at Gate 2 unlock (name + phone captured) ──────
-    // FIX: Removed X-System-Key header — was causing intermittent FUB failures
-    // FUB only needs Basic auth. X-System should be your domain, not the API key.
+    // ── Push to Follow Up Boss at Gate 2 unlock ──────────────────────────────
     const fubKey = process.env.FOLLOWUPBOSS_API_KEY
     if (fubKey && name && phone) {
       try {
