@@ -10,7 +10,7 @@ const DASHBOARD_PASSWORD = 'Equitygain$2026'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 interface Lead {
