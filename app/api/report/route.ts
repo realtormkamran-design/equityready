@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       .eq('address', address)
 
     // ── Push to Follow Up Boss at Gate 2 unlock (name + phone captured) ──────
+    // FIX: Removed X-System-Key header — was causing intermittent FUB failures
+    // FUB only needs Basic auth. X-System should be your domain, not the API key.
     const fubKey = process.env.FOLLOWUPBOSS_API_KEY
     if (fubKey && name && phone) {
       try {
@@ -96,11 +98,8 @@ Source: equityready.ca`,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // Basic auth: API key as username, empty password
             'Authorization': `Basic ${Buffer.from(fubKey + ':').toString('base64')}`,
-            // System headers — use your domain as system name
-            'X-System': 'EquityReady',
-            'X-System-Key': fubKey,
+            'X-System': 'equityready.ca',
           },
           body: JSON.stringify(fubPayload),
         })
@@ -136,8 +135,6 @@ Source: equityready.ca`,
     const fmt = (n: number) => '$' + Math.round(n).toLocaleString()
 
     // ── FIXED estimate formula ───────────────────────────────────────────────
-    // Use higher of: (a) $/sqft from MLS comps OR (b) assessed value
-    // This handles homes where large lots push assessed above the sqft calc
     let estimateLow  = 1353000
     let estimateHigh = 1522000
 
@@ -145,9 +142,7 @@ Source: equityready.ca`,
       const psfLow  = floorArea ? Math.round(MARKET.lowPsf * floorArea / 1000) * 1000 : assessedTotal
       const psfHigh = floorArea ? Math.round(MARKET.highPsf * floorArea / 1000) * 1000 : assessedTotal
 
-      // Floor is the higher of $/sqft low OR 97% of assessed
       estimateLow  = Math.max(psfLow,  Math.round(assessedTotal * 0.97 / 1000) * 1000)
-      // Ceiling is the higher of $/sqft high OR 105% of assessed
       estimateHigh = Math.max(psfHigh, Math.round(assessedTotal * 1.05 / 1000) * 1000)
     }
 
@@ -217,12 +212,11 @@ Write plain paragraphs only. Never mention AI or templates.`,
         const aiData = await aiRes.json()
         const aiText = aiData.content?.[0]?.text
         if (aiText && aiText.length > 100) {
-          // Strip any markdown the AI sneaks in anyway
           finalNarrative = stripMarkdown(aiText)
         }
       }
     } catch {
-      // Timed out or failed — instant narrative is already set, just use it
+      // Timed out or failed — instant narrative already set
     }
 
     // ── Return response ──────────────────────────────────────────────────────
