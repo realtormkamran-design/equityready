@@ -225,14 +225,15 @@ export async function POST(request: NextRequest) {
 
     const resendKey = process.env.RESEND_API_KEY
     if (resendKey && email) {
-      // Email to homeowner
+      // ── FIX 1: Clean subject line — no dollar amounts, no address ──────────
+      // Dollar amounts and addresses in subject lines trigger spam filters
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
           from: 'Kamran Khan <kamran@equityready.ca>',
           to: email,
-          subject: `Your Willoughby equity — ${equityGain} tax-free · ${address.split(',')[0]}`,
+          subject: `Your Willoughby home report is ready — Kamran Khan`,
           html: emailHtml,
         }),
       })
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           from: 'EquityReady Leads <kamran@equityready.ca>',
           to: process.env.REALTOR_EMAIL || 'Realtormkamran@gmail.com',
-          subject: `🔥 New lead — ${name} · ${phone} · ${address.split(',')[0]}`,
+          subject: `New lead — ${name} · ${address.split(',')[0]}`,
           html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px">
             <h2 style="color:#0A1628">New PDF report requested</h2>
             <table style="width:100%;border-collapse:collapse">
@@ -265,6 +266,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Follow Up Boss integration ──────────────────────────────────────────
+    // FIX 2: Removed X-System-Key header — it was causing intermittent FUB failures
+    // FUB only needs Basic auth with the API key. X-System-Key is not required.
     const fubKey = process.env.FOLLOWUPBOSS_API_KEY
     if (fubKey && name && phone) {
       try {
@@ -294,13 +297,11 @@ Source: equityready.ca PDF report request`,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Basic ${Buffer.from(fubKey + ':').toString('base64')}`,
-            'X-System': 'EquityReady',
-            'X-System-Key': fubKey,
+            'X-System': 'equityready.ca',
           },
           body: JSON.stringify(fubPayload),
         })
       } catch (fubError) {
-        // FUB failure should never block the email from sending
         console.error('Follow Up Boss error:', fubError)
       }
     }
